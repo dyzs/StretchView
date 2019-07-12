@@ -1,9 +1,11 @@
 package com.dyzs.card.stretchview;
 
 import android.content.Context;
+import android.support.annotation.NonNull;
 import android.support.v4.view.ViewCompat;
 import android.support.v4.widget.ViewDragHelper;
 import android.util.AttributeSet;
+import android.util.Log;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewConfiguration;
@@ -28,7 +30,7 @@ public class StretchView extends ViewGroup {
     private boolean isAutoScrolling = false;
     private StretchViewStatus mStretchViewStatus = StretchViewStatus.STATUS_INIT;
     private StretchViewChildViewPager mChildViewPager;
-    private int mTouchSlop;
+    private int slop;
 
     public StretchView(Context context) {
         super(context);
@@ -36,6 +38,7 @@ public class StretchView extends ViewGroup {
 
     public StretchView(Context context, AttributeSet attrs) {
         super(context, attrs);
+
     }
 
     public StretchView(Context context, AttributeSet attrs, int defStyleAttr) {
@@ -49,7 +52,7 @@ public class StretchView extends ViewGroup {
         mPartSlider = getChildAt(1);
         mViewDragHelper = ViewDragHelper.create(this, 1f,  new StretchDragHelper());
 
-        mTouchSlop = ViewConfiguration.get(getContext()).getScaledTouchSlop();
+        slop=ViewConfiguration.get(getContext()).getScaledTouchSlop();
         mChildViewPager = findViewWithTag("ChildViewPager");
         mChildViewPager.injectViewDragHelper(mViewDragHelper);
     }
@@ -71,16 +74,19 @@ public class StretchView extends ViewGroup {
 
     @Override
     protected void onLayout(boolean changed, int left, int top, int right, int bottom) {
-        // 摆放滑动参照物的位置
-        mPartReferencesWidth = mPartSliderReferences.getMeasuredWidth();
-        mPartReferencesHeight = mPartSliderReferences.getMeasuredHeight();
-        mPartSliderReferences.layout(0,0, mPartReferencesWidth, mPartReferencesHeight);
+        if(changed){
+            // 摆放滑动参照物的位置
+            mPartReferencesWidth = mPartSliderReferences.getMeasuredWidth();
+            mPartReferencesHeight = mPartSliderReferences.getMeasuredHeight();
+            mPartSliderReferences.layout(0,0, mPartReferencesWidth, mPartReferencesHeight);
 
-        // 摆放滑动部分的位置
-        mPartSliderWidth = mPartSlider.getMeasuredWidth();
-        mPartSliderHeight = mPartSlider.getMeasuredHeight();
-        mPartSlider.layout(0, 0,
-                mPartSliderWidth, mPartSliderHeight);
+            // 摆放滑动部分的位置
+            mPartSliderWidth = mPartSlider.getMeasuredWidth();
+            mPartSliderHeight = mPartSlider.getMeasuredHeight();
+            mPartSlider.layout(0, 0,
+                    mPartSliderWidth, mPartSliderHeight);
+        }
+
         
     }
 
@@ -138,6 +144,7 @@ public class StretchView extends ViewGroup {
          */
         @Override
         public boolean tryCaptureView(View child, int pointerId) {
+            Log.i(TAG,"tryCaptureView:"+child.getClass().getSimpleName()+" "+(mPartSlider == child));
             return mPartSlider == child;
         }
 
@@ -157,6 +164,11 @@ public class StretchView extends ViewGroup {
         public int clampViewPositionHorizontal(View child, int left, int dx) {
             // showTag("clampViewPositionHorizontal left: " + left + "///dx:" + dx);
             return super.clampViewPositionHorizontal(child, left, dx);
+        }
+
+        @Override
+        public int getViewVerticalDragRange(@NonNull View child) {
+            return 1;
         }
 
         /**
@@ -349,103 +361,68 @@ public class StretchView extends ViewGroup {
      * 检查是否可以拦截touch事件
      * 如果onInterceptTouchEvent可以return true 则进一步执行onTouchEvent
      */
-    private float xDistance, yDistance, xLast, yLast;
-    boolean isDownForIntercept = false;
     @Override
     public boolean onInterceptTouchEvent(MotionEvent ev) {
-        showTag("onInterceptTouchEvent....：" + ev.getAction());
-        /*switch (ev.getAction()) {
+        boolean intercept=mViewDragHelper.shouldInterceptTouchEvent(ev);
+        Log.i(TAG,"onInterceptTouchEvent "+ev.getAction()+" intercept:"+intercept);
+
+        return intercept;
+    }
+    float downX,downY;
+    boolean shouldIntercept;
+    boolean moved;
+    /*@Override
+    public boolean dispatchTouchEvent(MotionEvent ev) {
+        Log.i(TAG,"dispatchTouchEvent "+ev.getAction());
+        switch (ev.getAction()){
             case MotionEvent.ACTION_DOWN:
-                xDistance = yDistance = 0f;
-                xLast = ev.getX();
-                yLast = ev.getY();
-                isDownForIntercept = false;
+                downX=ev.getX();
+                downY=ev.getY();
+                shouldIntercept=false;
                 break;
             case MotionEvent.ACTION_MOVE:
-                final float curX = ev.getX();
-                final float curY = ev.getY();
+                float dy=ev.getY()-downY;
+                float dx=ev.getX()-downX;
+                if(!shouldIntercept){
+                    if(Math.abs(dy)>slop&&Math.abs(dy)>Math.abs(dx)){
+                        shouldIntercept=true;
+                    }else{
+                        moved=true;
+                    }
 
-                if (!isDownForIntercept) {
-                    xDistance += Math.abs(curX - xLast);
-                    yDistance += Math.abs(curY - yLast);
-                    xLast = curX;
-                    yLast = curY;
-                    isDownForIntercept= xDistance<yDistance ;
-                    LogUtils.v("onInterceptTouchEvent", "xDistance....：" + xDistance+"   yDistance:"+yDistance);
                 }
+                break;
+
         }
-        LogUtils.v("onInterceptTouchEvent", "isDownForIntercept....：" + isDownForIntercept);
+        Log.i(TAG,"isDownForIntercept....：" + shouldIntercept);
         //showTag("onInterceptTouchEvent.....:" + super.onInterceptTouchEvent(ev));
-        return isDownForIntercept||mViewDragHelper.shouldInterceptTouchEvent(ev); //拦截处理触摸事件，并传递给ViewDragHelper*/
-        // return true;
-        return mViewDragHelper.shouldInterceptTouchEvent(ev);
+
+        if(shouldIntercept) {
+            if(moved){
+                moved=false;
+                MotionEvent cancelEvent=MotionEvent.obtain(ev);
+                cancelEvent.setAction(MotionEvent.ACTION_CANCEL);
+                for(int i=0;i<getChildCount();i++){
+                    getChildAt(i).dispatchTouchEvent(cancelEvent);
+                }
+                //super.dispatchTouchEvent(cancelEvent);
+            }
+            onInterceptTouchEvent(ev);
+            onTouchEvent(ev);
+        }
+        return shouldIntercept||super.dispatchTouchEvent(ev); //拦截处理触摸事件，并传递给ViewDragHelper
+        // return super.dispatchTouchEvent(ev);
     }
+*/
 
     @Override
     public boolean dispatchTouchEvent(MotionEvent ev) {
-        //showTag("dispatchTouchEvent.....：" + ev.getY());
-        /*if (isAutoScrolling) {
-            showTag("dispatchTouchEvent: is auto scrolling, can't be dispatch touch event");
-            return false;
-        }*/
-        /*switch (ev.getAction()) {
-            case MotionEvent.ACTION_DOWN:
-                xDistance = yDistance = 0f;
-                xLast = ev.getX();
-                yLast = ev.getY();
-                break;
-            case MotionEvent.ACTION_MOVE:
-                final float curX = ev.getX();
-                final float curY = ev.getY();
-
-                xDistance += Math.abs(curX - xLast);
-                yDistance += Math.abs(curY - yLast);
-                xLast = curX;
-                yLast = curY;
-                if (xDistance > yDistance) {
-                    showTag("dispatchTouchEvent.....大于：");
-                    return super.dispatchTouchEvent(ev);
-                } else {
-                    showTag("dispatchTouchEvent.....小于：");
-                    return super.dispatchTouchEvent(ev);
-                }
-        }*/
-        switch (ev.getAction()) {
-            case MotionEvent.ACTION_DOWN:
-                xDistance = yDistance = 0f;
-                xLast = ev.getX();
-                yLast = ev.getY();
-                isDownForIntercept = false;
-                break;
-            case MotionEvent.ACTION_MOVE:
-                final float curX = ev.getX();
-                final float curY = ev.getY();
-
-                if (!isDownForIntercept) {
-                    xDistance += Math.abs(curX - xLast);
-                    yDistance += Math.abs(curY - yLast);
-                    xLast = curX;
-                    yLast = curY;
-                    isDownForIntercept= xDistance<yDistance ;
-                    LogUtils.v("onInterceptTouchEvent", "xDistance....：" + xDistance+"   yDistance:"+yDistance);
-                }
-        }
-        LogUtils.v("onInterceptTouchEvent", "isDownForIntercept....：" + isDownForIntercept);
-        //showTag("onInterceptTouchEvent.....:" + super.onInterceptTouchEvent(ev));
-
-        if (isDownForIntercept) {
-            MotionEvent ev2 = MotionEvent.obtain(ev);
-            ev2.setAction(MotionEvent.ACTION_CANCEL);
-            super.dispatchTouchEvent(ev2);
-            onTouchEvent(ev);
-        }
-        return isDownForIntercept||super.dispatchTouchEvent(ev); //拦截处理触摸事件，并传递给ViewDragHelper
-        // return super.dispatchTouchEvent(ev);
+        return super.dispatchTouchEvent(ev);
     }
-
 
     @Override
     public boolean onTouchEvent(MotionEvent ev) {
+        Log.i(TAG,"onTouchEvent "+ev.getAction());
         //return super.onTouchEvent(event);
         /**Process a touch event received by the parent view. This method will dispatch callback events
          as needed before returning. The parent view's onTouchEvent implementation should call this. */
@@ -453,6 +430,10 @@ public class StretchView extends ViewGroup {
         return true; //消费这个touch
     }
 
+    /*@Override
+    public void requestDisallowInterceptTouchEvent(boolean disallowIntercept) {
+        //super.requestDisallowInterceptTouchEvent(disallowIntercept);
+    }*/
 
     private void showTag(String str) {
         LogUtils.v(TAG, str);
