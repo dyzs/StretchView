@@ -147,7 +147,7 @@ public class StretchView extends ViewGroup implements NestedScrollingParent2 {
          */
         @Override
         public boolean tryCaptureView(View child, int pointerId) {
-            Log.i(TAG,"tryCaptureView:"+child.getClass().getSimpleName()+" "+(mPartSlider == child));
+            //Log.i(TAG,"tryCaptureView:"+child.getClass().getSimpleName()+" "+(mPartSlider == child));
             return mPartSlider == child;
         }
 
@@ -206,6 +206,13 @@ public class StretchView extends ViewGroup implements NestedScrollingParent2 {
         public void onViewPositionChanged(View changedView, int left, int top, int dx, int dy) {
             //showTag("onViewPositionChanged  left:"+ left + "// top:" + top + "// dy:" + dy+" h"+mPartSlider.getMeasuredHeight());
             super.onViewPositionChanged(changedView, left, top, dx, dy);
+            if(top>-mPartReferencesHeight/2&&top<mPartReferencesHeight/2){
+                mStretchViewStatus=StretchViewStatus.STATUS_INIT;
+            }else if(top<-mPartReferencesHeight/2){
+                mStretchViewStatus=StretchViewStatus.STATUS_PUSH_UP;
+            }else{
+                mStretchViewStatus=StretchViewStatus.STATUS_PULL_DOWN;
+            }
             switch (mStretchViewStatus) {
                 case STATUS_INIT:
                     mHoldPartPicView.layout(0, top, mHoldPartPicView.getMeasuredWidth(), top + mHoldPartPicView.getMeasuredHeight());
@@ -245,7 +252,7 @@ public class StretchView extends ViewGroup implements NestedScrollingParent2 {
             mHoldPartPicView.post(new Runnable() {
                 @Override
                 public void run() {
-                    float ratio=finalTop<=0?1:(1-finalTop*1f/mPartSliderReferences.getMeasuredHeight());
+                    float ratio=finalTop<=0?1:(1-finalTop*1f/mPartReferencesHeight);
                     if(ratio<0) ratio=0;
                     //showTag("mStretchViewStatus:"+mStretchViewStatus+"ratio:"+ratio);
                     ((FrameLayout)mHoldPartPicView).getChildAt(1).setAlpha(ratio);
@@ -264,7 +271,7 @@ public class StretchView extends ViewGroup implements NestedScrollingParent2 {
         public void onViewReleased(View releasedChild, float xVel, float yVel) {
             // 方法的参数里面没有top，那么我们就采用 getTop()这个方法
             int releasePartTop = mPartSlider.getTop();
-            showTag("onViewReleased:[" + yVel + "]" + "///releasePartTop[" + releasePartTop + "]");
+            //showTag("onViewReleased:[" + yVel + "]" + "///releasePartTop[" + releasePartTop + "]");
             float changeStatusValue = 500;
             switch (mStretchViewStatus) {
                 case STATUS_INIT:
@@ -323,7 +330,7 @@ public class StretchView extends ViewGroup implements NestedScrollingParent2 {
                     }
                     break;
             }
-            invalidate();
+            postInvalidate();
             super.onViewReleased(releasedChild, yVel, yVel);
         }
 
@@ -376,8 +383,12 @@ public class StretchView extends ViewGroup implements NestedScrollingParent2 {
      */
     @Override
     public boolean onInterceptTouchEvent(MotionEvent ev) {
+        if(ev.getAction()==MotionEvent.ACTION_DOWN){
+            flingEnd=true;
+            mViewDragHelper.smoothSlideViewTo(mPartSlider,mPartSlider.getLeft(),mPartSlider.getTop());//set capture view to null;
+        }
         boolean intercept=mViewDragHelper.shouldInterceptTouchEvent(ev);
-        Log.i(TAG,"onInterceptTouchEvent "+ev.getAction()+" intercept:"+intercept+" isRecycleViewTouchMode:"+isRecycleViewTouchMode);
+        //Log.i(TAG,"onInterceptTouchEvent "+ev.getAction()+" intercept:"+intercept+" isRecycleViewTouchMode:"+isRecycleViewTouchMode);
 
         return intercept&&!isRecycleViewTouchMode;
     }
@@ -389,10 +400,7 @@ public class StretchView extends ViewGroup implements NestedScrollingParent2 {
 
     @Override
     public boolean onTouchEvent(MotionEvent ev) {
-        Log.i(TAG,"onTouchEvent "+ev.getAction());
-        //return super.onTouchEvent(event);
-        /**Process a touch event received by the parent view. This method will dispatch callback events
-         as needed before returning. The parent view's onTouchEvent implementation should call this. */
+        //Log.i(TAG,"onTouchEvent "+ev.getAction());
         mViewDragHelper.processTouchEvent(ev); // 使用ViewDragHelper必须复写onTouchEvent并调用这个方法
         return true; //消费这个touch
     }
@@ -418,8 +426,6 @@ public class StretchView extends ViewGroup implements NestedScrollingParent2 {
         }
     }
 
-    private ViewDragHelper mCoverDragHelper;
-
 
     private View mHoldPartPicView;
     private int mPartPicTotalOffset = 50;// toolbar 实际高度
@@ -435,9 +441,11 @@ public class StretchView extends ViewGroup implements NestedScrollingParent2 {
     }
 
     boolean isRecycleViewTouchMode;
+    boolean isFling;
     @Override
-    public boolean onStartNestedScroll(@NonNull View view, @NonNull View view1, int i, int i1) {
-        isRecycleViewTouchMode=view1 instanceof RecyclerView&&(i& ViewCompat.SCROLL_AXIS_VERTICAL)!=0;
+    public boolean onStartNestedScroll(View child, View target, int nestedScrollAxes, int type) {
+        isRecycleViewTouchMode=target instanceof RecyclerView&&(nestedScrollAxes& ViewCompat.SCROLL_AXIS_VERTICAL)!=0;
+        isFling=false;
         return isRecycleViewTouchMode;
     }
 
@@ -446,42 +454,62 @@ public class StretchView extends ViewGroup implements NestedScrollingParent2 {
 
     }
 
+    boolean flingEnd=true;
     @Override
     public void onStopNestedScroll(@NonNull View view, int i) {
-        if(isRecycleViewTouchMode) mCallback.onViewReleased(null,0,0);
-        isRecycleViewTouchMode=false;
+        if(i==0){
+            if(isRecycleViewTouchMode&&!isFling) mCallback.onViewReleased(null,0,0);
+            isFling=false;
+            isRecycleViewTouchMode=false;
+        }else if(i==1){
+            if(flingEnd) return;
+            flingEnd=true;
+            mCallback.onViewReleased(mPartSlider,0,0);
+        }
+
     }
 
+    int[] fakeConsume=new int[2];
     @Override
-    public void onNestedScroll(@NonNull View view, int i, int i1, int i2, int i3, int i4) {
-
+    public void onNestedScroll(View target, int dxConsumed, int dyConsumed, int dxUnconsumed, int dyUnconsumed, int type) {
+        if(type==1&&!flingEnd){//接着recycleview的fling继续
+            onNestedPreScroll(target,dxUnconsumed,dyUnconsumed,fakeConsume,0);
+        }
     }
-
-    /*@Override
+    @Override
     public boolean onNestedPreFling(View target, float velocityX, float velocityY) {
-        boolean canScroll = !(target instanceof RecyclerView || target instanceof AbsListView);
-        *//*if(canScroll){
-            fling(0,(int)velocityY);
-        }*//*
-        return canScroll;
-    }*/
+        boolean isTop=mPartSlider.getTop()-getPaddingTop()==-mPartReferencesHeight;
+        boolean shouldFling=true;
+        if(isTop){//此时只有top和bottom状态允许截获fling状态，其他状态为rv内部fling
+            shouldFling=((velocityY<0)&&ScrollingUtil.isViewToTop(target,mTouchSlop))||((velocityY>0)&&ScrollingUtil.isViewToBottom(target,mTouchSlop));
+        }
+        if(shouldFling){
+            mCallback.onViewReleased(mPartSlider,-velocityX,-velocityY);
+        }else{
+            flingEnd=false;//开始rv内部滑动
+        }
+        isFling=true;
+        return isRecycleViewTouchMode&&shouldFling;
+    }
 
     @Override
     public void onNestedPreScroll(@NonNull View target, int dx, int dy, @NonNull int[] consumed, @NestedScrollType int type) {
         View capturedView=mPartSlider;
-        if(capturedView!=null){
+        if(capturedView!=null&&type==0){
             int consume;
             if(dy>0){
-                int bottom=mPartSlider.getPaddingTop()-getPaddingTop();
-                if(bottom<mPartSliderReferences.getMeasuredHeight()+getPaddingTop()){
-                    consume=bottom<dy?bottom:dy;
+                int top=capturedView.getTop()-getPaddingTop()+mPartReferencesHeight;
+                if(top>0){
+                    consume=top<dy?top:dy;
+                    ViewCompat.offsetTopAndBottom(capturedView, -consume);
                     mCallback.onViewPositionChanged(capturedView,capturedView.getLeft(),capturedView.getTop()-consume,0,-consume);
                     consumed[1]=consume;
                 }
             }else if(dy<0){
-                int top=mPartSlider.getTop()-getPaddingTop();
-                if(top<mPartSliderReferences.getMeasuredHeight()&& ScrollingUtil.isViewToTop(target,mTouchSlop)){
+                int top=(capturedView.getTop()-getPaddingTop())-mPartReferencesHeight;
+                if(top<0&& ScrollingUtil.isViewToTop(target,mTouchSlop)){
                     consume=top>dy?top:dy;
+                    ViewCompat.offsetTopAndBottom(capturedView, -consume);
                     mCallback.onViewPositionChanged(capturedView,capturedView.getLeft(),capturedView.getTop()-consume,0,-consume);
                     consumed[1]=consume;
                 }
