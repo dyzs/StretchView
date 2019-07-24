@@ -6,7 +6,7 @@
 
     <color name="white">#FFFFFF</color>
     <color name="half_percent_maria_blue">#9F2D99F5</color>
-    <color name="fifty_opacity_black">#7F000000</color>
+    <color name="fifty_opacity_black">#aF000000</color>
     <color name="oxygen_green">#35D599</color>
     <color name="oxygen_yellow">#FF9911</color>
 </resources>

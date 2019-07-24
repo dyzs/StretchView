@@ -2,19 +2,24 @@ package com.dyzs.card.stretchview;
 
 import android.content.Context;
 import android.os.Bundle;
+import android.support.annotation.NonNull;
 import android.support.v4.view.PagerAdapter;
 import android.support.v7.app.AppCompatActivity;
+import android.support.v7.widget.LinearLayoutManager;
+import android.support.v7.widget.RecyclerView;
+import android.support.v7.widget.RecyclerView.Adapter;
 import android.support.v7.widget.Toolbar;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.RelativeLayout;
+import android.widget.FrameLayout;
+import android.widget.TextView;
 
 public class MainActivity extends AppCompatActivity {
 
     StretchView mStretchView;
     View mViewCoverPart;
-    RelativeLayout mViewPartPic;
+    FrameLayout mViewPartPic;
     Toolbar mToolbarLayout;
     StretchViewChildViewPager mViewPager;
     private MyViewPagerAdapter myViewPagerAdapter;
@@ -47,6 +52,42 @@ public class MainActivity extends AppCompatActivity {
         mViewPager.setAdapter(myViewPagerAdapter);
     }
 
+    private void initRecycleView(View view){
+        final String[] array=new String[100];
+        for(int i=0;i<100;i++){
+            array[i]="test i+"+i;
+        }
+        RecyclerView rv=view.findViewById(R.id.rv);
+        rv.setLayoutManager(new LinearLayoutManager(this));
+        rv.setAdapter(new Adapter<DemoViewHolder>() {
+            @NonNull
+            @Override
+            public DemoViewHolder onCreateViewHolder(@NonNull ViewGroup viewGroup, int i) {
+                return new DemoViewHolder(new TextView(MainActivity.this));
+            }
+
+            @Override
+            public void onBindViewHolder(@NonNull DemoViewHolder viewHolder, int i) {
+                viewHolder.mText.setText(array[i]);
+            }
+
+            @Override
+            public int getItemCount() {
+                return array.length;
+            }
+
+        });
+    }
+    class DemoViewHolder extends RecyclerView.ViewHolder{
+
+        public TextView mText;
+
+        public DemoViewHolder(TextView itemView) {
+            super(itemView);
+            mText = itemView;
+        }
+    }
+
     private int[] layouts;
     public class MyViewPagerAdapter extends PagerAdapter {
 
@@ -60,6 +101,9 @@ public class MainActivity extends AppCompatActivity {
             layoutInflater = (LayoutInflater) getSystemService(Context.LAYOUT_INFLATER_SERVICE);
 
             View view = layoutInflater.inflate(layouts[position], container, false);
+            if(position==0){
+                initRecycleView(view);
+            }
             container.addView(view);
             return view;
         }

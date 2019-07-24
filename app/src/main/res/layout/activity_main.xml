@@ -6,7 +6,7 @@
     android:layout_height="match_parent"
     android:background="@color/white">
 
-    <RelativeLayout
+    <FrameLayout
         android:id="@+id/part_pic"
         android:layout_width="match_parent"
         android:layout_height="200dp">
@@ -19,7 +19,12 @@
             android:contentDescription="@string/app_name"
             />
 
-    </RelativeLayout>
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="@color/fifty_opacity_black"/>
+
+    </FrameLayout>
 
     <!-- Cover layer -->
     <LinearLayout
@@ -38,7 +43,8 @@
             android:id="@+id/view_cover"
             android:layout_width="match_parent"
             android:layout_height="150dp"
-            android:background="@color/fifty_opacity_black"/>
+            android:background="@color/fifty_opacity_black"
+            android:visibility="gone"/>
     </LinearLayout>
 
     <!-- body layer -->
@@ -57,9 +63,9 @@
             android:layout_width="match_parent"
             android:layout_height="match_parent">
 
-            <include layout="@layout/item_stretch_up"/>
+            <include layout="@layout/item_stretch_up" />
 
-            <include layout="@layout/item_stretch_down"/>
+            <include layout="@layout/item_stretch_down" />
 
         </com.dyzs.card.stretchview.StretchView>
     </LinearLayout>

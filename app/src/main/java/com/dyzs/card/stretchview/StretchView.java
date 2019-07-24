@@ -2,14 +2,18 @@ package com.dyzs.card.stretchview;
 
 import android.content.Context;
 import android.support.annotation.NonNull;
+import android.support.v4.view.NestedScrollingParent2;
 import android.support.v4.view.ViewCompat;
+import android.support.v4.view.ViewCompat.NestedScrollType;
 import android.support.v4.widget.ViewDragHelper;
+import android.support.v7.widget.RecyclerView;
 import android.util.AttributeSet;
 import android.util.Log;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewConfiguration;
 import android.view.ViewGroup;
+import android.widget.FrameLayout;
 
 
 /**
@@ -18,11 +22,12 @@ import android.view.ViewGroup;
  * https://www.jianshu.com/p/485b9b340436
  * https://gitee.com/amqr/LikePaperStretch.git
  */
-public class StretchView extends ViewGroup {
+public class StretchView extends ViewGroup implements NestedScrollingParent2 {
     public static String TAG = StretchView.class.getSimpleName();
     private View mPartSliderReferences;
     private View mPartSlider;
     private ViewDragHelper mViewDragHelper;
+    private StretchDragHelper mCallback;
     private int mPartReferencesWidth;
     private int mPartReferencesHeight;
     private int mPartSliderWidth;
@@ -30,7 +35,7 @@ public class StretchView extends ViewGroup {
     private boolean isAutoScrolling = false;
     private StretchViewStatus mStretchViewStatus = StretchViewStatus.STATUS_INIT;
     private StretchViewChildViewPager mChildViewPager;
-    private int slop;
+    private int mTouchSlop;
 
     public StretchView(Context context) {
         super(context);
@@ -48,28 +53,28 @@ public class StretchView extends ViewGroup {
     @Override
     protected void onFinishInflate() {
         super.onFinishInflate();
+        mTouchSlop=ViewConfiguration.get(getContext()).getScaledTouchSlop();
         mPartSliderReferences = getChildAt(0);
         mPartSlider = getChildAt(1);
-        mViewDragHelper = ViewDragHelper.create(this, 1f,  new StretchDragHelper());
+        mCallback=new StretchDragHelper();
+        mViewDragHelper = ViewDragHelper.create(this, 1f,  mCallback);
 
-        slop=ViewConfiguration.get(getContext()).getScaledTouchSlop();
         mChildViewPager = findViewWithTag("ChildViewPager");
         mChildViewPager.injectViewDragHelper(mViewDragHelper);
     }
 
     @Override
     protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
-        //super.onMeasure(widthMeasureSpec, heightMeasureSpec);
-
+        super.onMeasure(widthMeasureSpec, heightMeasureSpec);
         LayoutParams layoutParams = mPartSliderReferences.getLayoutParams();
         int measureHeight = MeasureSpec.makeMeasureSpec(layoutParams.height, MeasureSpec.EXACTLY);
         mPartSliderReferences.measure(widthMeasureSpec,measureHeight);
 
-        LayoutParams sliderLayoutParams = mPartSlider.getLayoutParams();
-        int sliderMeasureHeight = MeasureSpec.makeMeasureSpec(sliderLayoutParams.height, MeasureSpec.EXACTLY);
+        int superH=MeasureSpec.getSize(heightMeasureSpec);
+        int sliderMeasureHeight = MeasureSpec.makeMeasureSpec(superH+mPartSliderReferences.getMeasuredHeight(), MeasureSpec.EXACTLY);
         mPartSlider.measure(widthMeasureSpec, sliderMeasureHeight);
 
-        setMeasuredDimension(widthMeasureSpec, heightMeasureSpec);
+        //setMeasuredDimension(widthMeasureSpec, heightMeasureSpec);
     }
 
     @Override
@@ -86,8 +91,6 @@ public class StretchView extends ViewGroup {
             mPartSlider.layout(0, 0,
                     mPartSliderWidth, mPartSliderHeight);
         }
-
-        
     }
 
 
@@ -144,7 +147,7 @@ public class StretchView extends ViewGroup {
          */
         @Override
         public boolean tryCaptureView(View child, int pointerId) {
-            Log.i(TAG,"tryCaptureView:"+child.getClass().getSimpleName()+" "+(mPartSlider == child));
+            //Log.i(TAG,"tryCaptureView:"+child.getClass().getSimpleName()+" "+(mPartSlider == child));
             return mPartSlider == child;
         }
 
@@ -168,7 +171,7 @@ public class StretchView extends ViewGroup {
 
         @Override
         public int getViewVerticalDragRange(@NonNull View child) {
-            return 1;
+            return mTouchSlop;
         }
 
         /**
@@ -201,24 +204,30 @@ public class StretchView extends ViewGroup {
          */
         @Override
         public void onViewPositionChanged(View changedView, int left, int top, int dx, int dy) {
-            invalidate();
-            showTag("onViewPositionChanged  left:"+ left + "// top:" + top + "// dy:" + dy);
+            //showTag("onViewPositionChanged  left:"+ left + "// top:" + top + "// dy:" + dy+" h"+mPartSlider.getMeasuredHeight());
             super.onViewPositionChanged(changedView, left, top, dx, dy);
+            if(top>-mPartReferencesHeight/2&&top<mPartReferencesHeight/2){
+                mStretchViewStatus=StretchViewStatus.STATUS_INIT;
+            }else if(top<-mPartReferencesHeight/2){
+                mStretchViewStatus=StretchViewStatus.STATUS_PUSH_UP;
+            }else{
+                mStretchViewStatus=StretchViewStatus.STATUS_PULL_DOWN;
+            }
             switch (mStretchViewStatus) {
                 case STATUS_INIT:
                     mHoldPartPicView.layout(0, top, mHoldPartPicView.getMeasuredWidth(), top + mHoldPartPicView.getMeasuredHeight());
-                    mHoldCoverView.layout(0, top + mPartPicTotalOffset, mHoldCoverView.getMeasuredWidth(), top + mPartPicTotalOffset + mHoldCoverView.getMeasuredHeight());
+                    if(mHoldCoverView!=null) mHoldCoverView.layout(0, top + mPartPicTotalOffset, mHoldCoverView.getMeasuredWidth(), top + mPartPicTotalOffset + mHoldCoverView.getMeasuredHeight());
 
                     if (top < 0) { // 当释放拖拽状态，改变为初始化时，如果 top 小于 0，则限制 pic 上移
                         mHoldPartPicView.layout(0, 0, mHoldPartPicView.getMeasuredWidth(), mHoldPartPicView.getMeasuredHeight());
-                        mHoldCoverView.layout(0, mPartPicTotalOffset, mHoldCoverView.getMeasuredWidth(), mPartPicTotalOffset + mHoldCoverView.getMeasuredHeight());
+                        if(mHoldCoverView!=null) mHoldCoverView.layout(0, mPartPicTotalOffset, mHoldCoverView.getMeasuredWidth(), mPartPicTotalOffset + mHoldCoverView.getMeasuredHeight());
                     }
                     if (top > mPartPicTotalOffset) {
                         mHoldPartPicView.layout(0, mPartPicTotalOffset, mHoldPartPicView.getMeasuredWidth(), mPartPicTotalOffset + mHoldPartPicView.getMeasuredHeight());
                     }
 
                     if (top > mPartReferencesHeight) {
-                        mHoldCoverView.layout(0, mPartReferencesHeight + mPartPicTotalOffset, mHoldCoverView.getMeasuredWidth(), mPartReferencesHeight + mPartPicTotalOffset + mHoldCoverView.getMeasuredHeight());
+                        if(mHoldCoverView!=null) mHoldCoverView.layout(0, mPartReferencesHeight + mPartPicTotalOffset, mHoldCoverView.getMeasuredWidth(), mPartReferencesHeight + mPartPicTotalOffset + mHoldCoverView.getMeasuredHeight());
                     }
                     break;
                 case STATUS_PULL_DOWN:
@@ -229,16 +238,27 @@ public class StretchView extends ViewGroup {
                     }
                     /*if (top <= mPartReferencesHeight) {
                     }*/
-                    mHoldCoverView.layout(0, top + mPartPicTotalOffset, mHoldCoverView.getMeasuredWidth(), top + mPartPicTotalOffset + mHoldCoverView.getMeasuredHeight());
+                    if(mHoldCoverView!=null) mHoldCoverView.layout(0, top + mPartPicTotalOffset, mHoldCoverView.getMeasuredWidth(), top + mPartPicTotalOffset + mHoldCoverView.getMeasuredHeight());
                     break;
                 case STATUS_PUSH_UP:
                     if (top >= 0) {
-                        mHoldCoverView.layout(0, top + mPartPicTotalOffset, mHoldCoverView.getMeasuredWidth(), top + mPartPicTotalOffset + mHoldCoverView.getMeasuredHeight());
+                        if(mHoldCoverView!=null) mHoldCoverView.layout(0, top + mPartPicTotalOffset, mHoldCoverView.getMeasuredWidth(), top + mPartPicTotalOffset + mHoldCoverView.getMeasuredHeight());
                         if (top > mPartPicTotalOffset) top = mPartPicTotalOffset;
                         mHoldPartPicView.layout(0, top, mHoldPartPicView.getMeasuredWidth(), top + mHoldPartPicView.getMeasuredHeight());
                     }
                     break;
             }
+            final int finalTop=top;
+            mHoldPartPicView.post(new Runnable() {
+                @Override
+                public void run() {
+                    float ratio=finalTop<=0?1:(1-finalTop*1f/mPartReferencesHeight);
+                    if(ratio<0) ratio=0;
+                    //showTag("mStretchViewStatus:"+mStretchViewStatus+"ratio:"+ratio);
+                    ((FrameLayout)mHoldPartPicView).getChildAt(1).setAlpha(ratio);
+                }
+            });
+
         }
 
         /**
@@ -251,7 +271,7 @@ public class StretchView extends ViewGroup {
         public void onViewReleased(View releasedChild, float xVel, float yVel) {
             // 方法的参数里面没有top，那么我们就采用 getTop()这个方法
             int releasePartTop = mPartSlider.getTop();
-            showTag("onViewReleased:[" + yVel + "]" + "///releasePartTop[" + releasePartTop + "]");
+            //showTag("onViewReleased:[" + yVel + "]" + "///releasePartTop[" + releasePartTop + "]");
             float changeStatusValue = 500;
             switch (mStretchViewStatus) {
                 case STATUS_INIT:
@@ -310,7 +330,7 @@ public class StretchView extends ViewGroup {
                     }
                     break;
             }
-            invalidate();
+            postInvalidate();
             super.onViewReleased(releasedChild, yVel, yVel);
         }
 
@@ -363,57 +383,15 @@ public class StretchView extends ViewGroup {
      */
     @Override
     public boolean onInterceptTouchEvent(MotionEvent ev) {
+        if(ev.getAction()==MotionEvent.ACTION_DOWN){
+            flingEnd=true;
+            mViewDragHelper.smoothSlideViewTo(mPartSlider,mPartSlider.getLeft(),mPartSlider.getTop());//set capture view to null;
+        }
         boolean intercept=mViewDragHelper.shouldInterceptTouchEvent(ev);
-        Log.i(TAG,"onInterceptTouchEvent "+ev.getAction()+" intercept:"+intercept);
+        //Log.i(TAG,"onInterceptTouchEvent "+ev.getAction()+" intercept:"+intercept+" isRecycleViewTouchMode:"+isRecycleViewTouchMode);
 
-        return intercept;
+        return intercept&&!isRecycleViewTouchMode;
     }
-    float downX,downY;
-    boolean shouldIntercept;
-    boolean moved;
-    /*@Override
-    public boolean dispatchTouchEvent(MotionEvent ev) {
-        Log.i(TAG,"dispatchTouchEvent "+ev.getAction());
-        switch (ev.getAction()){
-            case MotionEvent.ACTION_DOWN:
-                downX=ev.getX();
-                downY=ev.getY();
-                shouldIntercept=false;
-                break;
-            case MotionEvent.ACTION_MOVE:
-                float dy=ev.getY()-downY;
-                float dx=ev.getX()-downX;
-                if(!shouldIntercept){
-                    if(Math.abs(dy)>slop&&Math.abs(dy)>Math.abs(dx)){
-                        shouldIntercept=true;
-                    }else{
-                        moved=true;
-                    }
-
-                }
-                break;
-
-        }
-        Log.i(TAG,"isDownForIntercept....：" + shouldIntercept);
-        //showTag("onInterceptTouchEvent.....:" + super.onInterceptTouchEvent(ev));
-
-        if(shouldIntercept) {
-            if(moved){
-                moved=false;
-                MotionEvent cancelEvent=MotionEvent.obtain(ev);
-                cancelEvent.setAction(MotionEvent.ACTION_CANCEL);
-                for(int i=0;i<getChildCount();i++){
-                    getChildAt(i).dispatchTouchEvent(cancelEvent);
-                }
-                //super.dispatchTouchEvent(cancelEvent);
-            }
-            onInterceptTouchEvent(ev);
-            onTouchEvent(ev);
-        }
-        return shouldIntercept||super.dispatchTouchEvent(ev); //拦截处理触摸事件，并传递给ViewDragHelper
-        // return super.dispatchTouchEvent(ev);
-    }
-*/
 
     @Override
     public boolean dispatchTouchEvent(MotionEvent ev) {
@@ -422,10 +400,7 @@ public class StretchView extends ViewGroup {
 
     @Override
     public boolean onTouchEvent(MotionEvent ev) {
-        Log.i(TAG,"onTouchEvent "+ev.getAction());
-        //return super.onTouchEvent(event);
-        /**Process a touch event received by the parent view. This method will dispatch callback events
-         as needed before returning. The parent view's onTouchEvent implementation should call this. */
+        //Log.i(TAG,"onTouchEvent "+ev.getAction());
         mViewDragHelper.processTouchEvent(ev); // 使用ViewDragHelper必须复写onTouchEvent并调用这个方法
         return true; //消费这个touch
     }
@@ -442,7 +417,7 @@ public class StretchView extends ViewGroup {
 
     private View mHoldCoverView;
     public void invokeCoverView(View view) {
-        mHoldCoverView = view;
+        //mHoldCoverView = view;
     }
 
     private void scrollCoverView(int offset) {
@@ -450,8 +425,6 @@ public class StretchView extends ViewGroup {
             ViewCompat.offsetTopAndBottom(mHoldCoverView, offset);
         }
     }
-
-    private ViewDragHelper mCoverDragHelper;
 
 
     private View mHoldPartPicView;
@@ -467,6 +440,82 @@ public class StretchView extends ViewGroup {
         }
     }
 
+    boolean isRecycleViewTouchMode;
+    boolean isFling;
+    @Override
+    public boolean onStartNestedScroll(View child, View target, int nestedScrollAxes, int type) {
+        isRecycleViewTouchMode=target instanceof RecyclerView&&(nestedScrollAxes& ViewCompat.SCROLL_AXIS_VERTICAL)!=0;
+        isFling=false;
+        return isRecycleViewTouchMode;
+    }
 
+    @Override
+    public void onNestedScrollAccepted(@NonNull View view, @NonNull View view1, int i, int i1) {
+
+    }
+
+    boolean flingEnd=true;
+    @Override
+    public void onStopNestedScroll(@NonNull View view, int i) {
+        if(i==0){
+            if(isRecycleViewTouchMode&&!isFling) mCallback.onViewReleased(null,0,0);
+            isFling=false;
+            isRecycleViewTouchMode=false;
+        }else if(i==1){
+            if(flingEnd) return;
+            flingEnd=true;
+            mCallback.onViewReleased(mPartSlider,0,0);
+        }
+
+    }
+
+    int[] fakeConsume=new int[2];
+    @Override
+    public void onNestedScroll(View target, int dxConsumed, int dyConsumed, int dxUnconsumed, int dyUnconsumed, int type) {
+        if(type==1&&!flingEnd){//接着recycleview的fling继续
+            onNestedPreScroll(target,dxUnconsumed,dyUnconsumed,fakeConsume,0);
+        }
+    }
+    @Override
+    public boolean onNestedPreFling(View target, float velocityX, float velocityY) {
+        boolean isTop=mPartSlider.getTop()-getPaddingTop()==-mPartReferencesHeight;
+        boolean shouldFling=true;
+        if(isTop){//此时只有top和bottom状态允许截获fling状态，其他状态为rv内部fling
+            shouldFling=((velocityY<0)&&ScrollingUtil.isViewToTop(target,mTouchSlop))||((velocityY>0)&&ScrollingUtil.isViewToBottom(target,mTouchSlop));
+        }
+        if(shouldFling){
+            mCallback.onViewReleased(mPartSlider,-velocityX,-velocityY);
+        }else{
+            flingEnd=false;//开始rv内部滑动
+        }
+        isFling=true;
+        return isRecycleViewTouchMode&&shouldFling;
+    }
+
+    @Override
+    public void onNestedPreScroll(@NonNull View target, int dx, int dy, @NonNull int[] consumed, @NestedScrollType int type) {
+        View capturedView=mPartSlider;
+        if(capturedView!=null&&type==0){
+            int consume;
+            if(dy>0){
+                int top=capturedView.getTop()-getPaddingTop()+mPartReferencesHeight;
+                if(top>0){
+                    consume=top<dy?top:dy;
+                    ViewCompat.offsetTopAndBottom(capturedView, -consume);
+                    mCallback.onViewPositionChanged(capturedView,capturedView.getLeft(),capturedView.getTop()-consume,0,-consume);
+                    consumed[1]=consume;
+                }
+            }else if(dy<0){
+                int top=(capturedView.getTop()-getPaddingTop())-mPartReferencesHeight;
+                if(top<0&& ScrollingUtil.isViewToTop(target,mTouchSlop)){
+                    consume=top>dy?top:dy;
+                    ViewCompat.offsetTopAndBottom(capturedView, -consume);
+                    mCallback.onViewPositionChanged(capturedView,capturedView.getLeft(),capturedView.getTop()-consume,0,-consume);
+                    consumed[1]=consume;
+                }
+            }
+
+        }
+    }
 
 }
