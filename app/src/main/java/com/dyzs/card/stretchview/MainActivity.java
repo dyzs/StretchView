@@ -33,6 +33,7 @@ public class MainActivity extends AppCompatActivity {
         mViewPartPic = findViewById(R.id.part_pic);
         mToolbarLayout = findViewById(R.id.toolbar);
         mViewPager = findViewById(R.id.view_pager);
+        mViewPager.setParentInterceptListener(mStretchView);
 
         mStretchView.postDelayed(new Runnable() {
             @Override
