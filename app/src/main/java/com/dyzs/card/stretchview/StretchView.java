@@ -22,7 +22,7 @@ import android.widget.FrameLayout;
  * https://www.jianshu.com/p/485b9b340436
  * https://gitee.com/amqr/LikePaperStretch.git
  */
-public class StretchView extends ViewGroup implements NestedScrollingParent2 {
+public class StretchView extends ViewGroup implements NestedScrollingParent2, ParentInterceptListener {
     public static String TAG = StretchView.class.getSimpleName();
     private View mPartSliderReferences;
     private View mPartSlider;
@@ -58,9 +58,6 @@ public class StretchView extends ViewGroup implements NestedScrollingParent2 {
         mPartSlider = getChildAt(1);
         mCallback=new StretchDragHelper();
         mViewDragHelper = ViewDragHelper.create(this, 1f,  mCallback);
-
-        mChildViewPager = findViewWithTag("ChildViewPager");
-        mChildViewPager.injectViewDragHelper(mViewDragHelper);
     }
 
     @Override
@@ -73,8 +70,6 @@ public class StretchView extends ViewGroup implements NestedScrollingParent2 {
         int superH=MeasureSpec.getSize(heightMeasureSpec);
         int sliderMeasureHeight = MeasureSpec.makeMeasureSpec(superH+mPartSliderReferences.getMeasuredHeight(), MeasureSpec.EXACTLY);
         mPartSlider.measure(widthMeasureSpec, sliderMeasureHeight);
-
-        //setMeasuredDimension(widthMeasureSpec, heightMeasureSpec);
     }
 
     @Override
@@ -91,6 +86,11 @@ public class StretchView extends ViewGroup implements NestedScrollingParent2 {
             mPartSlider.layout(0, 0,
                     mPartSliderWidth, mPartSliderHeight);
         }
+    }
+
+    @Override
+    public boolean isIntercepted() {
+        return isMoving;
     }
 
 
@@ -460,6 +460,7 @@ public class StretchView extends ViewGroup implements NestedScrollingParent2 {
         if(i==0){
             if(isRecycleViewTouchMode&&!isFling) mCallback.onViewReleased(null,0,0);
             isFling=false;
+            isMoving=false;
             isRecycleViewTouchMode=false;
         }else if(i==1){
             if(flingEnd) return;
@@ -492,10 +493,12 @@ public class StretchView extends ViewGroup implements NestedScrollingParent2 {
         return isRecycleViewTouchMode&&shouldFling;
     }
 
+    boolean isMoving;
     @Override
     public void onNestedPreScroll(@NonNull View target, int dx, int dy, @NonNull int[] consumed, @NestedScrollType int type) {
         View capturedView=mPartSlider;
         if(capturedView!=null&&type==0){
+            isMoving=true;
             int consume;
             if(dy>0){
                 int top=capturedView.getTop()-getPaddingTop()+mPartReferencesHeight;
