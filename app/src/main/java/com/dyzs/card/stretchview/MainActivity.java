@@ -13,6 +13,7 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.FrameLayout;
+import android.widget.LinearLayout;
 import android.widget.TextView;
 
 public class MainActivity extends AppCompatActivity {
@@ -105,6 +106,9 @@ public class MainActivity extends AppCompatActivity {
             if(position==0){
                 initRecycleView(view);
             }
+            else if (position == 1) {
+                initPos1(view);
+            }
             container.addView(view);
             return view;
         }
@@ -123,6 +127,17 @@ public class MainActivity extends AppCompatActivity {
         public void destroyItem(ViewGroup container, int position, Object object) {
             View view = (View) object;
             container.removeView(view);
+        }
+    }
+
+    private void initPos1(View view){
+        LinearLayout root = view.findViewById(R.id.item_container);
+        final String[] array=new String[100];
+        for(int i=0;i<100;i++){
+            array[i]="test i+"+i;
+            TextView textView = new TextView(MainActivity.this);
+            textView.setText("test pos1 i + " + i);
+            root.addView(textView);
         }
     }
 }

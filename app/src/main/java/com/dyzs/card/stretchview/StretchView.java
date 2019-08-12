@@ -5,10 +5,10 @@ import android.support.annotation.NonNull;
 import android.support.v4.view.NestedScrollingParent2;
 import android.support.v4.view.ViewCompat;
 import android.support.v4.view.ViewCompat.NestedScrollType;
+import android.support.v4.widget.NestedScrollView;
 import android.support.v4.widget.ViewDragHelper;
 import android.support.v7.widget.RecyclerView;
 import android.util.AttributeSet;
-import android.util.Log;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewConfiguration;
@@ -444,7 +444,7 @@ public class StretchView extends ViewGroup implements NestedScrollingParent2, Pa
     boolean isFling;
     @Override
     public boolean onStartNestedScroll(View child, View target, int nestedScrollAxes, int type) {
-        isRecycleViewTouchMode=target instanceof RecyclerView&&(nestedScrollAxes& ViewCompat.SCROLL_AXIS_VERTICAL)!=0;
+        isRecycleViewTouchMode = (target instanceof RecyclerView || target instanceof NestedScrollView) &&(nestedScrollAxes& ViewCompat.SCROLL_AXIS_VERTICAL)!=0;
         isFling=false;
         return isRecycleViewTouchMode;
     }
